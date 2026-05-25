@@ -1,0 +1,2 @@
+"""Vehicle detection MVP package."""
+

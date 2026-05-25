@@ -1,0 +1,35 @@
+"""Project configuration and shared constants."""
+
+from pathlib import Path
+
+
+TRANSPORT_CLASS_IDS = {
+    "car": 2,
+    "motorcycle": 3,
+    "bus": 5,
+    "truck": 7,
+}
+
+TRANSPORT_CLASSES = list(TRANSPORT_CLASS_IDS.values())
+
+DEFAULT_MODEL = "yolo26s.pt"
+DEFAULT_CONF = 0.35
+DEFAULT_IMGSZ = 640
+DEFAULT_DEVICE = None
+DEFAULT_SAVE_PATH = Path("outputs/result.mp4")
+DEFAULT_SAVE_VIDEO = True
+DEFAULT_SHOW = True
+DEFAULT_IGNORE_BOTTOM_RATIO = 0.25
+DEFAULT_YELLOW_LINE_RATIO = 0.47
+DEFAULT_RED_LINE_RATIO = 0.53
+DEFAULT_TRAFFIC_SIDE = "right"
+DEFAULT_DRAW_ROI = True
+DEFAULT_ONCOMING_ONLY = True
+DEFAULT_ROAD_SEGMENTATION = True
+DEFAULT_ROAD_MODEL = "nvidia/segformer-b0-finetuned-cityscapes-640-1280"
+DEFAULT_ROAD_SEG_INTERVAL = 30
+DEFAULT_DRAW_ROAD_MASK = True
+DEFAULT_ROAD_LOCAL_FILES_ONLY = False
+
+WINDOW_NAME = "Vehicle Detection"
+DEFAULT_OUTPUT_FPS = 30.0
