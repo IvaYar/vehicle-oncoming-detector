@@ -1,32 +1,45 @@
 # Vehicle Oncoming Detector
 
-MVP-проект для real-time computer vision detection транспорта на видео. Сейчас проект детектит транспортные классы COCO:
+Computer vision project for detecting vehicles in video and highlighting vehicles that may be in the oncoming lane.
+
+The current implementation uses:
+
+- Ultralytics YOLO for vehicle detection
+- A configurable oncoming-lane ROI
+- Optional road-area segmentation with SegFormer Cityscapes
+- OpenCV video rendering and result export
+
+Detected COCO vehicle classes:
 
 - `car`
 - `motorcycle`
 - `bus`
 - `truck`
 
-В дальнейшем сюда удобно добавить модуль `oncoming_lane_logic.py` для определения машин на встречной полосе.
-
-## Структура
+## Project Structure
 
 ```text
 vehicle-oncoming-detector/
-├── main.py
-├── requirements.txt
-├── README.md
-├── outputs/
-└── src/
-    ├── __init__.py
-    ├── detector.py
-    ├── oncoming_lane_logic.py
-    ├── road_area_logic.py
-    ├── video_processor.py
-    └── config.py
+|-- main.py
+|-- requirements.txt
+|-- README.md
+|-- yolo26s.pt
+|-- outputs/
+|-- test_videos/
+`-- src/
+    |-- __init__.py
+    |-- config.py
+    |-- detector.py
+    |-- oncoming_lane_logic.py
+    |-- road_area_logic.py
+    `-- video_processor.py
 ```
 
-## Создание виртуального окружения
+`outputs/`, `test_videos/`, virtual environments, caches, and generated video files are ignored by Git.
+
+## Setup
+
+Create and activate a virtual environment.
 
 Windows PowerShell:
 
@@ -42,215 +55,216 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-## Установка зависимостей
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Для автоматического определения проезжей части используются `transformers` и `pillow`. При первом запуске модель сегментации дороги будет скачана в cache Hugging Face, если её ещё нет локально.
+## Basic Usage
 
-## Запуск
+Run detection on a video:
 
 ```bash
 python main.py --source path/to/video.mp4
 ```
 
-По умолчанию используется модель `yolo26s.pt`, confidence threshold `0.35`, размер изображения `640`, сохранение в `outputs/result.mp4` и показ окна OpenCV.
+By default, the project uses:
 
-## Выбор модели
+- YOLO model: `yolo26s.pt`
+- confidence threshold: `0.35`
+- image size: `640`
+- output video: `outputs/result.mp4`
+- OpenCV preview window: enabled
+- road segmentation: enabled
+
+Stop processing by pressing `q` while the OpenCV preview window is focused.
+
+## Model Selection
+
+Use the included local YOLO model:
 
 ```bash
 python main.py --source path/to/video.mp4 --model yolo26s.pt
 ```
 
-Можно указать путь к локальному `.pt` файлу или имя модели, поддерживаемое Ultralytics.
+You can also pass another local `.pt` model path or a model name supported by Ultralytics.
 
-## Запуск на CPU
+Run on CPU:
 
 ```bash
 python main.py --source path/to/video.mp4 --device cpu
 ```
 
-## Запуск на GPU
+Run on GPU:
 
 ```bash
 python main.py --source path/to/video.mp4 --device 0
 ```
 
-## Полезные параметры
+## Useful Examples
+
+Save the processed video to a custom path:
 
 ```bash
-python main.py --source path/to/video.mp4 --conf 0.45 --imgsz 960 --save outputs/demo.mp4 --show false
+python main.py --source path/to/video.mp4 --save outputs/demo.mp4
 ```
 
-Чтобы проверить результат в окне OpenCV без сохранения файла в `outputs/`:
+Show the result without saving a video:
 
 ```bash
-python main.py --source test_videos/car_test1.mp4 --road-local-files-only true --save-video false
+python main.py --source path/to/video.mp4 --save-video false
 ```
 
-Если камера видит капот или торпеду своей машины и модель детектит её как `car`, можно настроить нижнюю игнорируемую зону кадра:
+Use a higher confidence threshold and larger inference image size:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --ignore-bottom-ratio 0.25
+python main.py --source path/to/video.mp4 --conf 0.45 --imgsz 960
 ```
 
-Значение `0.25` означает, что нижние 25% кадра используются как зона своей машины. Детекции с центром в этой зоне, а также очень большие рамки, которые касаются этой зоны, не будут отрисованы. Если рамка торпеды всё ещё появляется, попробуйте `0.30` или `0.35`.
-
-Чтобы выключить фильтр:
+If the camera sees the hood or dashboard of the current car and YOLO detects it as a vehicle, increase the ignored bottom area:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --ignore-bottom-ratio 0
+python main.py --source path/to/video.mp4 --ignore-bottom-ratio 0.30
 ```
 
-Для контроля приближения транспорта на кадре рисуются две горизонтальные линии:
-
-- жёлтая `CLOSE` - машина находится близко;
-- красная `NO OVERTAKING` - после этой линии обгон запрещён.
-
-По умолчанию жёлтая линия находится на `0.45` высоты кадра, красная - на `0.55`. Значения считаются сверху вниз: `0.0` - верх кадра, `1.0` - низ кадра.
+Disable that filter:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --yellow-line-ratio 0.55 --red-line-ratio 0.70
+python main.py --source path/to/video.mp4 --ignore-bottom-ratio 0
 ```
 
-Пересечение определяется по нижней границе bounding box машины. Без object tracking это означает, что статус отображается, пока хотя бы одна текущая детекция находится ниже соответствующей линии.
+## Distance Warning Lines
 
-## ROI встречной полосы
+The video overlay includes two horizontal warning lines:
 
-Чтобы не реагировать на все машины в кадре, проект использует ROI встречной полосы. Для каждой детекции берётся нижняя центральная точка bbox:
+- yellow `CLOSE` line
+- red `NO OVERTAKING` line
 
-```text
-x = (x1 + x2) / 2
-y = y2
-```
+The line positions are configured as ratios of frame height. The value `0.0` means the top of the frame, and `1.0` means the bottom.
 
-Если эта точка находится внутри ROI, машина считается кандидатом на встречной полосе. Жёлтая и красная линии срабатывают только для таких машин.
+Defaults:
 
-Для правостороннего движения встречная зона по умолчанию находится слева:
+- yellow line: `0.47`
+- red line: `0.53`
+
+Example:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --traffic-side right
+python main.py --source path/to/video.mp4 --yellow-line-ratio 0.55 --red-line-ratio 0.70
 ```
 
-Для левостороннего движения встречная зона зеркалируется вправо:
+The warning is based on the lower edge of the vehicle bounding box.
+
+## Oncoming-Lane ROI
+
+The project can restrict warnings to vehicles whose lower center point is inside an oncoming-lane region of interest.
+
+For right-hand traffic, the oncoming lane is usually on the left:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --traffic-side left
+python main.py --source path/to/video.mp4 --traffic-side right
 ```
 
-По умолчанию на видео остаются только машины внутри ROI встречной полосы. Чтобы видеть все bbox, но оставлять предупреждения только по встречному ROI:
+For left-hand traffic, the oncoming lane is mirrored to the right:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --oncoming-only false
+python main.py --source path/to/video.mp4 --traffic-side left
 ```
 
-ROI рисуется на кадре полупрозрачным полигоном. Его можно скрыть:
+By default, only detections inside the oncoming-lane area are drawn. To draw all detected vehicles while keeping warnings limited to the oncoming area:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --draw-roi false
+python main.py --source path/to/video.mp4 --oncoming-only false
 ```
 
-Если стандартный ROI плохо подходит под камеру, можно задать свой полигон в долях кадра:
+Hide the ROI overlay:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --oncoming-roi "0.08,0.90;0.46,0.90;0.50,0.55;0.42,0.44;0.18,0.62"
+python main.py --source path/to/video.mp4 --draw-roi false
 ```
 
-Координаты считаются от верхнего левого угла: `0.0,0.0` - левый верх, `1.0,1.0` - правый низ.
-
-## Автоматическая маска дороги
-
-По умолчанию включена сегментация проезжей части через SegFormer Cityscapes:
+Use a custom ROI polygon with normalized frame coordinates:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --road-seg true
+python main.py --source path/to/video.mp4 --oncoming-roi "0.08,0.90;0.46,0.90;0.50,0.55;0.42,0.44;0.18,0.62"
 ```
 
-Модель по умолчанию:
+Coordinates use the top-left frame corner as `0.0,0.0` and the bottom-right frame corner as `1.0,1.0`.
+
+## Road Segmentation
+
+Road segmentation is enabled by default:
+
+```bash
+python main.py --source path/to/video.mp4 --road-seg true
+```
+
+Default road segmentation model:
 
 ```text
 nvidia/segformer-b0-finetuned-cityscapes-640-1280
 ```
 
-Логика:
+The first run may download this model from Hugging Face if it is not available locally.
 
-```text
-YOLO bbox машины
--> нижняя центральная точка bbox
--> точка должна быть внутри mask road
--> road mask делится центральной кривой на две стороны
--> traffic-side right: встречка слева от центра дороги
--> traffic-side left: встречка справа от центра дороги
--> жёлтая/красная линии срабатывают только для таких машин
-```
-
-Маска дороги обновляется не каждый кадр, а раз в несколько кадров:
+The road mask is updated every 30 frames by default:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --road-seg-interval 30
+python main.py --source path/to/video.mp4 --road-seg-interval 30
 ```
 
-Для более точной, но медленной работы:
+Use a lower interval for more accurate but slower processing:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --road-seg-interval 1
+python main.py --source path/to/video.mp4 --road-seg-interval 1
 ```
 
-Чтобы отключить автоматическую маску дороги и вернуться к ручному ROI:
+Disable road segmentation and use only the manual ROI:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --road-seg false
+python main.py --source path/to/video.mp4 --road-seg false
 ```
 
-Чтобы скрыть зелёную маску дороги и центральную линию:
+Hide the green road mask and road center curve:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --draw-road-mask false
+python main.py --source path/to/video.mp4 --draw-road-mask false
 ```
 
-Если модель уже скачана и нужно запускаться без сетевых проверок:
+If the SegFormer model is already cached and you want to avoid network checks:
 
 ```bash
-python main.py --source test_videos/cars.mp4 --road-local-files-only true
+python main.py --source path/to/video.mp4 --road-local-files-only true
 ```
 
-Параметры командной строки:
+## Command-Line Options
 
-- `--source` - путь к входному видео.
-- `--model` - путь или имя модели, по умолчанию `yolo26s.pt`.
-- `--conf` - confidence threshold, по умолчанию `0.35`.
-- `--imgsz` - размер изображения для инференса, по умолчанию `640`.
-- `--device` - устройство, например `cpu` или `0`.
-- `--save` - путь сохранения результата, по умолчанию `outputs/result.mp4`.
-- `--save-video` - сохранять обработанное видео, `true` или `false`.
-- `--show` - показывать ли окно OpenCV, `true` или `false`.
-- `--ignore-bottom-ratio` - доля нижней части кадра, где игнорируются детекции своей машины, по умолчанию `0.25`.
-- `--yellow-line-ratio` - положение жёлтой линии по высоте кадра, по умолчанию `0.45`.
-- `--red-line-ratio` - положение красной линии по высоте кадра, по умолчанию `0.55`.
-- `--traffic-side` - сторона дорожного движения: `right` или `left`, по умолчанию `right`.
-- `--draw-roi` - рисовать ROI встречной полосы, `true` или `false`.
-- `--oncoming-only` - оставлять bbox только внутри встречного ROI, `true` или `false`.
-- `--oncoming-roi` - пользовательский ROI в формате `"x1,y1;x2,y2;x3,y3"`.
-- `--road-seg` - использовать SegFormer для автоматической маски дороги, `true` или `false`.
-- `--road-model` - модель сегментации дороги.
-- `--road-seg-interval` - как часто обновлять маску дороги, в кадрах.
-- `--draw-road-mask` - рисовать маску дороги и центральную линию, `true` или `false`.
-- `--road-local-files-only` - загружать road segmentation модель только из локального cache, `true` или `false`.
+| Option | Description | Default |
+| --- | --- | --- |
+| `--source` | Path to the input video. | required |
+| `--model` | YOLO model path or model name. | `yolo26s.pt` |
+| `--conf` | Confidence threshold. | `0.35` |
+| `--imgsz` | Inference image size. | `640` |
+| `--device` | Inference device, for example `cpu` or `0`. | auto |
+| `--save` | Output video path. | `outputs/result.mp4` |
+| `--save-video` | Save processed video: `true` or `false`. | `true` |
+| `--show` | Show OpenCV preview window: `true` or `false`. | `true` |
+| `--ignore-bottom-ratio` | Bottom frame area ignored as the current vehicle. | `0.25` |
+| `--yellow-line-ratio` | Yellow warning line position by frame height. | `0.47` |
+| `--red-line-ratio` | Red warning line position by frame height. | `0.53` |
+| `--traffic-side` | Road traffic side: `right` or `left`. | `right` |
+| `--draw-roi` | Draw oncoming-lane ROI overlay. | `true` |
+| `--oncoming-only` | Draw only vehicles inside the oncoming area. | `true` |
+| `--oncoming-roi` | Custom normalized ROI polygon: `"x1,y1;x2,y2;x3,y3"`. | auto |
+| `--road-seg` | Use road segmentation. | `true` |
+| `--road-model` | Road segmentation model. | `nvidia/segformer-b0-finetuned-cityscapes-640-1280` |
+| `--road-seg-interval` | Road mask update interval in frames. | `30` |
+| `--draw-road-mask` | Draw road mask and center curve. | `true` |
+| `--road-local-files-only` | Load the road segmentation model only from local cache. | `false` |
 
-Остановить обработку можно клавишей `q`, если включён показ окна.
+## Notes
 
-## Что можно добавить дальше
+`src/road_area_logic.py` builds a road mask, estimates the main road corridor, and splits it into own/oncoming sides. If a yellow separator line is visible inside the road mask, it is used as the main divider. If the yellow separator cannot be detected, the code falls back to road-mask geometry.
 
-Сейчас проект выполняет только детекцию транспорта на тестовом видео. Следующие шаги для системы обнаружения машин на встречной полосе:
-
-- Более точная настройка ROI для разных камер.
-- Более стабильная drivable area segmentation на сложных дорогах и бездорожье.
-- Object tracking.
-- Классификацию `front/rear/side` для машин.
-- Определение приближающихся машин.
-
-Модуль `src/road_area_logic.py` сейчас строит маску класса `road` и центральную кривую дороги. Если внутри маски дороги видна жёлтая разделительная разметка, она используется как основной разделитель направлений движения. Если жёлтую разметку найти не удалось, используется fallback по геометрии дорожной маски. Позже этот модуль можно заменить более специализированной drivable area моделью без переписывания детектора и обработки видео.
-
-Центральная кривая строится не по всем road-пикселям кадра, а по основному дорожному коридору. Нижняя зона своей машины игнорируется, а сама линия сглаживается, чтобы не реагировать на шумы сегментации, капот и небольшие разрывы маски.
+The road center curve is smoothed to reduce flicker from segmentation noise, hood/dash visibility, and small gaps in the road mask.
