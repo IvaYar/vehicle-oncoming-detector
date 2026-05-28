@@ -84,6 +84,7 @@ class VideoProcessor:
                 update_interval=road_seg_interval,
                 local_files_only=road_local_files_only,
                 bottom_ignore_ratio=ignore_bottom_ratio,
+                traffic_side=traffic_side,
             )
             if road_segmentation
             else None
